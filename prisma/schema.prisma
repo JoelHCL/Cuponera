@@ -1,0 +1,62 @@
+// SQLite en local. Para producción (Postgres/Neon/Vercel Postgres) cambia
+// provider a "postgresql" y DATABASE_URL; el resto del esquema no cambia.
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Un "espacio de pareja" por instancia. Tiene exactamente dos miembros.
+model Space {
+  id        String   @id @default(cuid())
+  name      String
+  createdAt DateTime @default(now())
+
+  members  Member[]
+  coupons  Coupon[]
+}
+
+model Member {
+  id          String   @id @default(cuid())
+  spaceId     String
+  displayName String
+  pinHash     String
+  createdAt   DateTime @default(now())
+
+  space Space @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+
+  createdCoupons  Coupon[] @relation("CouponCreator")
+  receivedCoupons Coupon[] @relation("CouponRecipient")
+
+  @@index([spaceId])
+}
+
+// disponible -> solicitado -> cobrado
+model Coupon {
+  id          String    @id @default(cuid())
+  spaceId     String
+  title       String
+  description String?
+  status      String    @default("disponible") // disponible | solicitado | cobrado
+
+  creatorId   String    // quien regala el cupón y lo marca como cobrado
+  recipientId String    // la otra persona; quien lo solicita
+
+  requestNote String?
+  requestedAt DateTime?
+  redeemedAt  DateTime?
+  expiresAt   DateTime?
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  space     Space  @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+  creator   Member @relation("CouponCreator", fields: [creatorId], references: [id])
+  recipient Member @relation("CouponRecipient", fields: [recipientId], references: [id])
+
+  @@index([spaceId])
+  @@index([status])
+}
